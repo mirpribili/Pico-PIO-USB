@@ -237,6 +237,7 @@ void set_pin_state(uint8_t *key_states, uint8_t length)
                     break;
                 case '\n': // Код для клавиши Enter
                 case '\r': // Код для возврата каретки (в зависимости от платформы)
+                case '<': // bug
                     pin_states[3] = true; // Включаем состояние пина Enter
                     break;
                 case '.':
