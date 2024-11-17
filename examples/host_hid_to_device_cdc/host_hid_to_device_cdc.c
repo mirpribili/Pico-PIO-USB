@@ -276,35 +276,52 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
 {
     (void)dev_addr;
 
-    //static hid_keyboard_report_t prev_report = {0, 0, {0}};
-    uint8_t key_states[MAX_KEYS] = {0}; // Массив для хранения текущих состояний клавиш
-    uint8_t output_index = 0; // Индекс для выходного массива
+    uint8_t key_states[MAX_KEYS] = {0}; // Array to store current key states
+    uint8_t output_index = 0; // Index for output array
 
-    // Очистка предыдущего вывода
-    //tud_cdc_write("\r       \r", 9);
+    // Clear previous output
     tud_cdc_write("\n\r", 2);
 
-    // Первый цикл: Обработка текущего отчета и обновление состояния клавиш
+    // First loop: Process current report and update key states
     for (uint8_t i = 0; i < MAX_KEYS; i++)
     {
-        uint8_t keycode = report->keycode[i]; // Используем report вместо hid_keyboard_report_t
-        if (keycode)
+        uint8_t keycode = report->keycode[i]; // Use report to get the keycode
+        bool is_key_down = (keycode != 0); // Determine if the key is pressed
+
+        if (is_key_down)
         {
-			//bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
-            //uint8_t ch = keycode2ascii[keycode][is_shift ? 1 : 0];
-            key_states[i] = keycode2ascii[keycode][0];//keycode; // Обновляем состояние клавиши
-            output_index++; // Увеличиваем индекс выходного массива
+            // Check for Enter key using string comparison
+            if (keycode2ascii[keycode][0] == '\n') // Assuming '\n' represents Enter in your mapping
+            {
+                key_states[output_index++] = '<'; // Change output for Enter key
+            }
+            else
+            {
+                key_states[output_index++] = keycode2ascii[keycode][0]; // Update key state
+            }
+
+            // Log key down event
+            tud_cdc_write("Key Down: ", 10);
+            tud_cdc_write(&key_states[output_index - 1], 1); // Log the character
+            tud_cdc_write("\n", 1); // New line for clarity
+        }
+        else
+        {
+            // Log key up event
+            tud_cdc_write("Key Up: ", 8);
+            tud_cdc_write(&key_states[output_index - 1], 1); // Log the character
+            tud_cdc_write("\n", 1); // New line for clarity
         }
     }
 
-    // Отправляем текущее состояние только если есть символы в выходном массиве
+    // Send current state only if there are characters in the output array
     if (output_index > 0)
     {
-        tud_cdc_write(key_states, output_index); // Отправляем только валидную часть выходного массива
+        tud_cdc_write(key_states, output_index); // Send only valid part of output array
     }
+
     set_pin_state(key_states, output_index);
-    tud_cdc_write_flush(); // Сбрасываем данные в CDC
-    //prev_report = *report; // Обновляем предыдущий отчет
+    tud_cdc_write_flush(); // Flush data to CDC
 }
 
 // send mouse report to usb device CDC
