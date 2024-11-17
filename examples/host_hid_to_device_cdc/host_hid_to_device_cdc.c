@@ -181,7 +181,7 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
   return false;
 }
 
-
+#define MAX_KEYS 6
 // convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
 static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report)
 {
