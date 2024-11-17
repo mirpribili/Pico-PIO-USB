@@ -292,27 +292,27 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
         // Check if the state has changed from previous state
         if (is_key_down && previous_key_states[i] == 0) // Key down event
         {
-            if (keycode2ascii[keycode][0] == '\n') // Check for Enter key
+            if (keycode2ascii[keycode][0] == '\n' || keycode2ascii[keycode][0] == '\r') // Check for Enter key
             {
                 key_states[output_index++] = '<'; // Change output for Enter key
-                tud_cdc_write("Key Down: <\n", 13); // Log Enter key down
+                //tud_cdc_write("Key Down: <\n", 13); // Log Enter key down
             }
             else
             {
                 key_states[output_index++] = keycode2ascii[keycode][0]; // Update key state
-                tud_cdc_write("Key Down: ", 10);
-                tud_cdc_write(&key_states[output_index - 1], 1); // Log the character
-                tud_cdc_write("\n", 1); // New line for clarity
+                //tud_cdc_write("Key Down: ", 10);
+                //tud_cdc_write(&key_states[output_index - 1], 1); // Log the character
+                //tud_cdc_write("\n", 1); // New line for clarity
             }
         }
         else if (!is_key_down && previous_key_states[i] != 0) // Key up event
         {
-            tud_cdc_write("Key Up: ", 8);
+            //tud_cdc_write("Key Up: ", 8);
             if (keycode != 0)
             {
                 tud_cdc_write(&key_states[output_index - 1], 1); // Log the character
             }
-            tud_cdc_write("\n", 1); // New line for clarity
+            //tud_cdc_write("\n", 1); // New line for clarity
         }
 
         // Update previous state for this key
