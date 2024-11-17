@@ -63,6 +63,15 @@ const uint8_t colemak[128] = {
 };
 #endif
 
+#define PIN_KEY_2 2
+#define PIN_KEY_3 3
+#define PIN_KEY_4 4
+#define PIN_KEY_5 5
+#define PIN_KEY_6 6
+#define PIN_KEY_7 7
+#define PIN_KEY_8 8
+#define PIN_KEY_9 9
+
 static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
 /*------------- MAIN -------------*/
@@ -87,6 +96,24 @@ void core1_main() {
 
 // core0: handle device events
 int main(void) {
+gpio_init(PIN_KEY_2);
+  gpio_init(PIN_KEY_3);
+  gpio_init(PIN_KEY_4);
+  gpio_init(PIN_KEY_5);
+  gpio_init(PIN_KEY_6);
+  gpio_init(PIN_KEY_7);
+  gpio_init(PIN_KEY_8);
+  gpio_init(PIN_KEY_9);
+
+  gpio_set_dir(PIN_KEY_2, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_3, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_4, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_5, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_6, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_7, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_8, GPIO_OUT);
+  gpio_set_dir(PIN_KEY_9, GPIO_OUT);
+
   // default 125MHz is not appropreate. Sysclock should be multiple of 12MHz.
   set_sys_clock_khz(120000, true);
 
@@ -180,15 +207,77 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
 
   return false;
 }
+// Функция для установки состояния пинов
+void set_pin_state(uint8_t *key_states, uint8_t length, bool onOff)
+{
+    // Массив для хранения текущих состояний пинов
+    // bool pin_states[10] = {false}; // Инициализируем массив состояниями "выключено"
 
+    // Сначала обрабатываем массив состояний клавиш
+    for (uint8_t i = 0; i < length; i++)
+    {
+        char keycode = key_states[i];
+        if (keycode) // Если клавиша активна
+        {
+            switch (keycode)
+            {
+                case '2':
+//                    pin_states[5] = onOff; // 2d 3u 4r 5l 6mh 7lf 8 mf 9lh
+                    gpio_put(PIN_KEY_5, onOff);
+                    break;
+                case '3':
+//                    pin_states[2] = onOff;
+//                    gpio_put(PIN_KEY_2, pin_states[2]); // down
+                    gpio_put(PIN_KEY_2, onOff); // down
+                    break;
+                case '4':
+//                    pin_states[4] = onOff;
+                    gpio_put(PIN_KEY_4, onOff);
+                    break;
+                case '\n': // Код для клавиши Enter
+                case '\r': // Код для возврата каретки (в зависимости от платформы)
+                case '<': // Код для возврата каретки (в зависимости от платформы)
+//                    pin_states[3] = onOff; // Включаем состояние пина Enter
+                    gpio_put(PIN_KEY_3, onOff);
+                    break;
+                case '.':
+                case '6':
+                    //pin_states[6] = true;
+                    break;
+                 case '0':
+                    //pin_states[7] = true;
+                    break;
+                case '1':
+                    //pin_states[8] = true;
+                    break;
+                case '5':
+                    //pin_states[9] = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    // Обновляем состояния пинов в соответствии с массивом состояний
+//    gpio_put(PIN_KEY_2, pin_states[2]); // down
+//    gpio_put(PIN_KEY_3, pin_states[3]); // up
+//    gpio_put(PIN_KEY_4, pin_states[4]); // right
+//    gpio_put(PIN_KEY_5, pin_states[5]); // left
+//    gpio_put(PIN_KEY_6, pin_states[6]); // M_H
+//    gpio_put(PIN_KEY_7, pin_states[7]); // L_F
+//    gpio_put(PIN_KEY_8, pin_states[8]); // M_F
+//    gpio_put(PIN_KEY_9, pin_states[9]); // L_H
+}
 #define MAX_KEYS 6
-// convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
 static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report) {
     (void)dev_addr;
 
     static hid_keyboard_report_t prev_report = {0}; // Переменная для хранения предыдущего отчета
-    uint8_t key_states[25] = {0}; // Массив для хранения текущих состояний клавиш
-    uint8_t output_index = 0; // Индекс для записи в key_states
+    uint8_t key_down[MAX_KEYS] = {0};
+    uint8_t output_index = 0; // Индекс для записи в key_down
+    uint8_t key_up[MAX_KEYS] = {0}; // Массив для отпущенных клавиш
+    int max_keys_current_report = 0;
 
     // Очистка предыдущего вывода
     tud_cdc_write("\n\r", 2);
@@ -198,47 +287,52 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
         uint8_t keycode = report->keycode[i]; // Получаем код клавиши
 
         if (keycode != 0) {
-            key_states[output_index++] = keycode2ascii[keycode][0]; // Сохраняем символ нажатой клавиши
+            max_keys_current_report++;
+            key_down[output_index++] = keycode2ascii[keycode][0] == '\r' ? '<' : keycode2ascii[keycode][0]; // Сохраняем символ нажатой клавиши
+        } else {
+            break; // Если встретили ноль, выходим из цикла
         }
     }
 
    tud_cdc_write("Key Down: ", 10); // Логируем нажатия
-   tud_cdc_write(key_states, output_index);
+   tud_cdc_write((char *)key_down, output_index);
+   set_pin_state(key_down, output_index, true);
 
-    // Сбрасываем массив для отпущенных клавиш
-    memset(key_states, 0, sizeof(key_states));
-    output_index = 0;
+   // Сбрасываем индекс для отпущенных клавиш
+   output_index = 0;
 
-    // Сравнение текущего отчета с предыдущим для определения отпусканий
-    for (uint8_t i = 0; i < MAX_KEYS; i++) {
-        uint8_t previous_keycode = prev_report.keycode[i];
+   // Сравнение текущего отчета с предыдущим для определения отпусканий
+   for (uint8_t i = 0; i < MAX_KEYS; i++) {
+       uint8_t previous_keycode = prev_report.keycode[i];
 
-        if (previous_keycode != 0) { // Если клавиша была нажата в предыдущем отчете
-            bool was_released = true;
+       if (previous_keycode != 0) { // Если клавиша была нажата в предыдущем отчете
+           bool was_released = true;
 
-            // Проверяем, есть ли эта клавиша в текущем отчете
-            for (uint8_t j = 0; j < MAX_KEYS; j++) {
-                if (report->keycode[j] == previous_keycode) {
-                    was_released = false; // Клавиша все еще нажата
-                    break;
-                }
-            }
+           // Проверяем, есть ли эта клавиша в текущем отчете, используя max_keys_current_report
+           for (uint8_t j = 0; j < max_keys_current_report; j++) {
+               if (report->keycode[j] == previous_keycode) {
+                   was_released = false; // Клавиша все еще нажата
+                   break;
+               }
+           }
 
-            if (was_released) {
-                // Клавиша отпущена
-                key_states[output_index++] = keycode2ascii[previous_keycode][0]; // Сохраняем символ отпущенной клавиши
-            }
-        }
-    }
+           if (was_released) {
+               // Клавиша отпущена
+               key_up[output_index++] = keycode2ascii[previous_keycode][0] == '\r' ? '<' : keycode2ascii[previous_keycode][0]; // Сохраняем символ отпущенной клавиши
+           }
+       } else {
+           break; // Если встретили ноль, выходим из цикла
+       }
+   }
 
+   tud_cdc_write("\n\rKey Up: ", 10); // Логируем отпускания
+   tud_cdc_write((char *)key_up, output_index);
+   set_pin_state(key_up, output_index, false);
 
-    tud_cdc_write("\nKey Up: ", 9); // Логируем отпускания
-    tud_cdc_write(key_states, output_index);
+   // Обновляем предыдущий отчет
+   prev_report = *report;
 
-    // Обновляем предыдущий отчет
-    prev_report = *report;
-
-    tud_cdc_write_flush(); // Сбрасываем данные в CDC
+   tud_cdc_write_flush(); // Сбрасываем данные в CDC
 }
 
 // send mouse report to usb device CDC
