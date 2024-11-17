@@ -183,45 +183,60 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
 
 #define MAX_KEYS 6
 // convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
-static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report)
-{
+static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report) {
     (void)dev_addr;
 
-    static uint8_t key_states = 0; // Битовая маска для хранения текущих состояний клавиш
+    static hid_keyboard_report_t prev_report = {0}; // Переменная для хранения предыдущего отчета
+    uint8_t key_states[25] = {0}; // Массив для хранения текущих состояний клавиш
+    uint8_t output_index = 0; // Индекс для записи в key_states
 
     // Очистка предыдущего вывода
     tud_cdc_write("\n\r", 2);
 
     // Обработка текущего отчета
-    for (uint8_t i = 0; i < MAX_KEYS; i++)
-    {
+    for (uint8_t i = 0; i < MAX_KEYS; i++) {
         uint8_t keycode = report->keycode[i]; // Получаем код клавиши
-        bool is_key_down = (keycode != 0); // Определяем, нажата ли клавиша
 
-        if (keycode < 255) { // Проверка на допустимое значение keycode
-            if (is_key_down) {
-                // Нажатие клавиши
-                if (!(key_states & (1 << i))) { // Если клавиша не была ранее нажата
-                    key_states |= (1 << i); // Устанавливаем бит для нажатой клавиши
-                    char output_char = (keycode2ascii[keycode][0] == '\n' || keycode2ascii[keycode][0] == '\r') ? '<' : keycode2ascii[keycode][0];
-                    tud_cdc_write("Key Down: ", 10); // Логируем нажатие
-                    tud_cdc_write(&output_char, 1); // Логируем символ
-                }
-            } else {
-                // Отпускание клавиши
-                if (key_states & (1 << i)) { // Если клавиша была ранее нажата
-                    key_states &= ~(1 << i); // Сбрасываем бит для отпущенной клавиши
-                    char output_char = keycode2ascii[keycode][0];
-                    tud_cdc_write("Key Up: ", 8); // Логируем отпускание
-                    tud_cdc_write(&output_char, 1); // Логируем символ
-                }
-            }
-        } else {
-            // Логирование предупреждения о нарушении
-            const char *warning_msg = "Warning: Invalid keycode received!\n";
-            tud_cdc_write(warning_msg, strlen(warning_msg)); // Выводим предупреждение о неверном коде клавиши
+        if (keycode != 0) {
+            key_states[output_index++] = keycode2ascii[keycode][0]; // Сохраняем символ нажатой клавиши
         }
     }
+
+   tud_cdc_write("Key Down: ", 10); // Логируем нажатия
+   tud_cdc_write(key_states, output_index);
+
+    // Сбрасываем массив для отпущенных клавиш
+    memset(key_states, 0, sizeof(key_states));
+    output_index = 0;
+
+    // Сравнение текущего отчета с предыдущим для определения отпусканий
+    for (uint8_t i = 0; i < MAX_KEYS; i++) {
+        uint8_t previous_keycode = prev_report.keycode[i];
+
+        if (previous_keycode != 0) { // Если клавиша была нажата в предыдущем отчете
+            bool was_released = true;
+
+            // Проверяем, есть ли эта клавиша в текущем отчете
+            for (uint8_t j = 0; j < MAX_KEYS; j++) {
+                if (report->keycode[j] == previous_keycode) {
+                    was_released = false; // Клавиша все еще нажата
+                    break;
+                }
+            }
+
+            if (was_released) {
+                // Клавиша отпущена
+                key_states[output_index++] = keycode2ascii[previous_keycode][0]; // Сохраняем символ отпущенной клавиши
+            }
+        }
+    }
+
+
+    tud_cdc_write("\nKey Up: ", 9); // Логируем отпускания
+    tud_cdc_write(key_states, output_index);
+
+    // Обновляем предыдущий отчет
+    prev_report = *report;
 
     tud_cdc_write_flush(); // Сбрасываем данные в CDC
 }
