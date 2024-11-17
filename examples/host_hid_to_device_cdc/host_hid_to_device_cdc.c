@@ -185,45 +185,41 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
 // convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
 static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report)
 {
-  (void) dev_addr;
-  static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
-  bool flush = false;
+    (void)dev_addr;
 
-  for(uint8_t i=0; i<6; i++)
-  {
-    uint8_t keycode = report->keycode[i];
-    if ( keycode )
+    static uint8_t previous_key_states[MAX_KEYS] = {0}; // Array to store previous key states
+    uint8_t output_index = 0; // Index for output array
+
+    // Clear previous output
+    tud_cdc_write("\n\r", 2);
+
+    // First loop: Process current report and update key states
+    for (uint8_t i = 0; i < MAX_KEYS; i++)
     {
-      if ( find_key_in_report(&prev_report, keycode) )
-      {
-        // exist in previous report means the current key is holding
-      }else
-      {
-        // not existed in previous report means the current key is pressed
+        uint8_t keycode = report->keycode[i]; // Use report to get the keycode
+        bool is_key_down = (keycode != 0); // Determine if the key is pressed
 
-        // remap the key code for Colemak layout
-        #ifdef KEYBOARD_COLEMAK
-        uint8_t colemak_key_code = colemak[keycode];
-        if (colemak_key_code != 0) keycode = colemak_key_code;
-        #endif
-
-        bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
-        uint8_t ch = keycode2ascii[keycode][is_shift ? 1 : 0];
-
-        if (ch)
+        // Check if the state has changed from previous state
+        if (is_key_down && previous_key_states[i] == 0) // Key down event
         {
-          if (ch == '\n') tud_cdc_write("\r", 1);
-          tud_cdc_write(&ch, 1);
-          flush = true;
+            char output_char = (keycode2ascii[keycode][0] == '\n' || keycode2ascii[keycode][0] == '\r') ? '<' : keycode2ascii[keycode][0];
+            tud_cdc_write("Key Down: ", 10); // Log Key Down event
+            tud_cdc_write(&output_char, 1); // Log the character
+            //tud_cdc_write("\n", 1); // New line for clarity
         }
-      }
+        else if (!is_key_down && previous_key_states[i] != 0) // Key up event
+        {
+            char output_char = keycode2ascii[previous_key_states[i]][0];
+            tud_cdc_write("Key Up: ", 8); // Log Key Up event
+            tud_cdc_write(&output_char, 1); // Log the character
+            //tud_cdc_write("\n", 1); // New line for clarity
+        }
+
+        // Update previous state for this key
+        previous_key_states[i] = is_key_down ? keycode : 0;
     }
-    // TODO example skips key released
-  }
 
-  if (flush) tud_cdc_write_flush();
-
-  prev_report = *report;
+    tud_cdc_write_flush(); // Flush data to CDC
 }
 
 // send mouse report to usb device CDC
