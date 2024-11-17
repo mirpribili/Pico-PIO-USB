@@ -282,7 +282,7 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
 
     // Очистка предыдущего вывода
     //tud_cdc_write("\r       \r", 9);
-    tud_cdc_write("\n", 1);
+    tud_cdc_write("\n\r", 2);
 
     // Первый цикл: Обработка текущего отчета и обновление состояния клавиш
     for (uint8_t i = 0; i < MAX_KEYS; i++)
