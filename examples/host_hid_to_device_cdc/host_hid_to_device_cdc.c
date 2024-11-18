@@ -273,6 +273,7 @@ void set_pin_state(uint8_t *key_states, uint8_t length, bool onOff)
 static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report) {
     (void)dev_addr;
 
+    static bool log_switch = false;
     static hid_keyboard_report_t prev_report = {0}; // Переменная для хранения предыдущего отчета
     uint8_t key_down[MAX_KEYS] = {0};
     uint8_t output_index = 0; // Индекс для записи в key_down
@@ -280,7 +281,9 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
     int max_keys_current_report = 0;
 
     // Очистка предыдущего вывода
-    tud_cdc_write("\n\r", 2);
+    if (log_switch) {
+        tud_cdc_write("\n\r", 2);
+    }
 
     // Обработка текущего отчета
     for (uint8_t i = 0; i < MAX_KEYS; i++) {
@@ -293,11 +296,23 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
             break; // Если встретили ноль, выходим из цикла
         }
     }
-
-   tud_cdc_write("Key Down: ", 10); // Логируем нажатия
-   tud_cdc_write((char *)key_down, output_index);
+    if (log_switch) {
+        tud_cdc_write("Key Down: ", 10); // Логируем нажатия
+        tud_cdc_write((char *)key_down, output_index);
+    }
    set_pin_state(key_down, output_index, true);
 
+   // on off logs
+   if (output_index >= 1){
+     if ( (key_down[0] == '1' && key_down[1] == '0') ||
+     (key_down[0] == '0' && key_down[1] == '1')){
+        if (log_switch){
+            log_switch = false;
+        }else{
+            log_switch = true;
+        }
+     }
+   }
    // Сбрасываем индекс для отпущенных клавиш
    output_index = 0;
 
@@ -324,15 +339,17 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
            break; // Если встретили ноль, выходим из цикла
        }
    }
-
-   tud_cdc_write("\n\rKey Up: ", 10); // Логируем отпускания
-   tud_cdc_write((char *)key_up, output_index);
+   if (log_switch) {
+        tud_cdc_write("\n\rKey Up: ", 10); // Логируем отпускания
+        tud_cdc_write((char *)key_up, output_index);
+   }
    set_pin_state(key_up, output_index, false);
 
    // Обновляем предыдущий отчет
    prev_report = *report;
-
-   tud_cdc_write_flush(); // Сбрасываем данные в CDC
+   if (log_switch) {
+        tud_cdc_write_flush(); // Сбрасываем данные в CDC
+   }
 }
 
 // send mouse report to usb device CDC
